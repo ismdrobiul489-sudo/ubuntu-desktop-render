@@ -54,6 +54,7 @@ RUN apt-get update -y && apt-get install --no-install-recommends -y \
     openssl \
     firefox \
     xubuntu-icon-theme \
+    iproute2 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -67,15 +68,49 @@ RUN mkdir -p /root/.vnc && \
     chmod 1777 /tmp/.X11-unix
 
 # ============================================
-# Create Startup Script
-# Uses $PORT from Render (default 10000)
+# Create Startup Script inline (avoids CRLF)
 # ============================================
 
-COPY startup.sh /startup.sh
-RUN chmod +x /startup.sh
+RUN printf '#!/bin/bash\n\
+    \n\
+    echo "=== Starting Ubuntu Desktop ==="\n\
+    \n\
+    PORT=${PORT:-6080}\n\
+    echo "Web Port: $PORT"\n\
+    \n\
+    # Cleanup\n\
+    rm -rf /tmp/.X* /root/.vnc/*.pid 2>/dev/null || true\n\
+    \n\
+    # Setup VNC\n\
+    mkdir -p /root/.vnc\n\
+    echo "" | vncpasswd -f > /root/.vnc/passwd\n\
+    chmod 600 /root/.vnc/passwd\n\
+    \n\
+    # Start VNC on display :1\n\
+    echo "Starting VNC..."\n\
+    vncserver :1 -geometry 1280x720 -depth 24 --I-KNOW-THIS-IS-INSECURE\n\
+    \n\
+    sleep 5\n\
+    \n\
+    # Show VNC status\n\
+    echo "VNC processes:"\n\
+    ps aux | grep -i vnc\n\
+    echo "Listening ports:"\n\
+    ss -tuln | grep -E "590|$PORT"\n\
+    \n\
+    # SSL cert\n\
+    openssl req -new -x509 -days 365 -nodes -subj "/CN=localhost" \\\n\
+    -out /tmp/cert.pem -keyout /tmp/cert.pem 2>/dev/null\n\
+    \n\
+    echo "Starting noVNC on port $PORT..."\n\
+    echo "Access: /vnc.html"\n\
+    \n\
+    # Start websockify in foreground\n\
+    exec websockify --web=/usr/share/novnc/ --cert=/tmp/cert.pem $PORT 127.0.0.1:5901\n\
+    ' > /startup.sh && chmod +x /startup.sh
 
 # ============================================
-# Expose Port
+# Expose Port & Run
 # ============================================
 
 EXPOSE 10000
