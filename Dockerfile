@@ -1,7 +1,7 @@
 # ============================================
-# Hugging Face Spaces - Ubuntu Desktop
+# Render.com - Ubuntu Desktop
 # Browser-based Ubuntu Desktop using noVNC
-# Port: 7860 (HF Spaces requirement)
+# Port: Uses $PORT environment variable
 # ============================================
 
 FROM --platform=linux/amd64 ubuntu:22.04
@@ -21,7 +21,7 @@ RUN apt-get update -y && apt-get install --no-install-recommends -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================
-# Add Mozilla PPA and Install Firefox
+# Add Mozilla PPA
 # ============================================
 
 RUN add-apt-repository ppa:mozillateam/ppa -y && \
@@ -62,52 +62,22 @@ RUN apt-get update -y && apt-get install --no-install-recommends -y \
 # ============================================
 
 RUN mkdir -p /root/.vnc && \
-    touch /root/.Xauthority
+    touch /root/.Xauthority && \
+    mkdir -p /tmp/.X11-unix && \
+    chmod 1777 /tmp/.X11-unix
 
 # ============================================
-# Create Startup Script (Port 7860)
+# Create Startup Script
+# Uses $PORT from Render (default 10000)
 # ============================================
 
-RUN echo '#!/bin/bash\n\
-    set -e\n\
-    \n\
-    echo "=== Starting Ubuntu Desktop for Hugging Face Spaces ==="\n\
-    echo "Port: 7860"\n\
-    \n\
-    # Clean up stale VNC locks\n\
-    rm -rf /tmp/.X* /tmp/.x* 2>/dev/null || true\n\
-    rm -rf /root/.vnc/*.pid 2>/dev/null || true\n\
-    \n\
-    # Start VNC Server on display :1 (port 5901)\n\
-    echo "[1/3] Starting VNC Server..."\n\
-    vncserver :1 -localhost no -SecurityTypes None -geometry 1280x720 --I-KNOW-THIS-IS-INSECURE\n\
-    sleep 3\n\
-    \n\
-    # Generate SSL certificate for WebSocket\n\
-    echo "[2/3] Generating SSL Certificate..."\n\
-    openssl req -new -subj "/C=US/CN=localhost" -x509 -days 365 -nodes -out /tmp/novnc.pem -keyout /tmp/novnc.pem 2>/dev/null\n\
-    \n\
-    # Start noVNC websockify on port 7860 (HF Spaces requirement)\n\
-    echo "[3/3] Starting noVNC on port 7860..."\n\
-    websockify -D --web=/usr/share/novnc/ --cert=/tmp/novnc.pem 7860 localhost:5901\n\
-    \n\
-    echo "=== Desktop Ready ==="\n\
-    echo "Access via: /vnc.html"\n\
-    \n\
-    # Keep container running\n\
-    tail -f /dev/null\n\
-    ' > /startup.sh && chmod +x /startup.sh
+COPY startup.sh /startup.sh
+RUN chmod +x /startup.sh
 
 # ============================================
-# Setup Permissions
+# Expose Port
 # ============================================
 
-RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
-
-# ============================================
-# Expose Port & Run
-# ============================================
-
-EXPOSE 7860
+EXPOSE 10000
 
 CMD ["/startup.sh"]
