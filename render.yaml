@@ -3,9 +3,7 @@
 services:
   - type: web
     name: ubuntu-desktop
-    env: docker
-    plan: starter  # or standard for more resources
-    healthCheckPath: /
-    envVars:
-      - key: PORT
-        value: 10000
+    runtime: docker
+    plan: starter  # starter or free
+    healthCheckPath: /vnc.html
+    # PORT is automatically set by Render, no need to specify
